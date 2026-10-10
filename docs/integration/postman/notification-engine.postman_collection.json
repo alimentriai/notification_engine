@@ -1,0 +1,3363 @@
+{
+  "info": {
+    "name": "Notification Engine v2",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "End-to-end flow for a project integrating with the notification engine.\n\n**Run order:** run the whole collection top to bottom (Collection Runner or `newman run`). Folder 1 creates a fresh project and key and stores them in collection variables, so every run is isolated.\n\n**Set before running:** `baseUrl` and `adminKey` (the engine's platform admin key). Everything else is filled in by the scripts.\n\n**Real delivery:** with the engine in `aws` mode set `recipientEmail` to an address verified in SES (sandbox) and `waitMs` to about 4000. `SENT` means the provider accepted the message.\n\nNever commit real keys: `adminKey` and `apiKey` are secrets and are empty in the committed environments."
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Api-Key"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}"
+      },
+      {
+        "key": "in",
+        "value": "header"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "adminKey",
+      "value": ""
+    },
+    {
+      "key": "apiKey",
+      "value": ""
+    },
+    {
+      "key": "recipientEmail",
+      "value": "ops@example.com"
+    },
+    {
+      "key": "recipientPhone",
+      "value": "+919876543210"
+    },
+    {
+      "key": "waitMs",
+      "value": "1500"
+    },
+    {
+      "key": "otpCode",
+      "value": ""
+    },
+    {
+      "key": "badKey",
+      "value": "ntf_not_a_real_key"
+    },
+    {
+      "key": "projectCode",
+      "value": ""
+    },
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "challengeId",
+      "value": ""
+    },
+    {
+      "key": "templateId",
+      "value": ""
+    },
+    {
+      "key": "keyId",
+      "value": ""
+    },
+    {
+      "key": "inboxId",
+      "value": ""
+    },
+    {
+      "key": "readOnlyKey",
+      "value": ""
+    },
+    {
+      "key": "apiKeyB",
+      "value": ""
+    },
+    {
+      "key": "scheduledAt",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0 Health",
+      "description": "Public, no API key. Use it to check the engine is reachable.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Returns `{\"status\":\"UP\"}` when the engine and its database are healthy.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"status UP\", function () { pm.expect(pm.response.json().status).to.eql(\"UP\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 Admin onboarding",
+      "description": "Done once per project by the **platform admin** (uses `adminKey`). The project key is returned ONCE and stored hashed.",
+      "item": [
+        {
+          "name": "Create project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects"
+              ]
+            },
+            "description": "Creates the tenant. `code` must be unique and lowercase. Optional: sesConfigSet, smsSenderId, smsEntityId, rateLimitPerMin, dailyQuota.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{projectCode}}\",\n  \"name\": \"Demo {{projectCode}}\",\n  \"defaultSenderEmail\": \"no-reply@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var runId = Math.random().toString(36).slice(2, 10);",
+                  "pm.collectionVariables.set(\"runId\", runId);",
+                  "pm.collectionVariables.set(\"projectCode\", \"demo-\" + runId);",
+                  "pm.collectionVariables.set(\"scheduledAt\", new Date(Date.now() + 3600 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"project is ACTIVE\", function () { pm.expect(pm.response.json().status).to.eql(\"ACTIVE\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Issue project API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects/{{projectCode}}/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects",
+                "{{projectCode}}",
+                "keys"
+              ]
+            },
+            "description": "The raw key is returned only in this response. The engine stores a SHA-256 hash. Give each service/environment its own key with the narrowest scopes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"postman-demo\",\n  \"scopes\": [\n    \"SEND\",\n    \"READ\",\n    \"RETRY\",\n    \"TEMPLATES\",\n    \"PREFERENCES\",\n    \"OTP\",\n    \"INBOX\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "var b = pm.response.json();",
+                  "pm.test(\"key shown once, starts with ntf_\", function () { pm.expect(b.key).to.match(/^ntf_/); });",
+                  "pm.collectionVariables.set(\"apiKey\", b.key);",
+                  "pm.collectionVariables.set(\"keyId\", b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List the project's keys (metadata only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects/{{projectCode}}/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects",
+                "{{projectCode}}",
+                "keys"
+              ]
+            },
+            "description": "The raw key cannot be retrieved after creation (only a hash is stored). Use this to see which keys exist, their scopes and when they were last used. If a key was lost, issue a new one and revoke the old one.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "var keys = pm.response.json();",
+                  "pm.test(\"shows prefix, label and scopes but never the raw key\", function () { pm.expect(keys.length).to.be.above(0); pm.expect(keys[0].prefix).to.be.a(\"string\"); pm.expect(JSON.stringify(keys)).to.not.include(pm.collectionVariables.get(\"apiKey\")); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"contains the demo project\", function () { pm.expect(pm.response.json().map(function (p) { return p.code; })).to.include(pm.collectionVariables.get(\"projectCode\")); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 Templates",
+      "description": "Wording lives in the engine, not in the calling backend. Placeholders such as `{{name}}` are required at send time. Run as the project (`apiKey`, scope TEMPLATES).",
+      "item": [
+        {
+          "name": "Create EMAIL template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"approval-requested\",\n  \"channel\": \"EMAIL\",\n  \"locale\": \"en\",\n  \"subject\": \"Approval needed for weighment #{{id}}\",\n  \"bodyHtml\": \"<p>Hi {{name}}, weighment <b>#{{id}}</b> needs approval.</p>\",\n  \"bodyText\": \"Hi {{name}}, weighment #{{id}} needs approval.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "var t = pm.response.json();",
+                  "pm.test(\"version 1\", function () { pm.expect(t.version).to.eql(1); });",
+                  "pm.collectionVariables.set(\"templateId\", t.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create IN_APP template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"approval-requested\",\n  \"channel\": \"IN_APP\",\n  \"subject\": \"Approval required\",\n  \"bodyText\": \"Weighment #{{id}} needs approval.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create SMS template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "For India, set `dltTemplateId` to the DLT-approved content template id; the text must match it exactly.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"approval-requested\",\n  \"channel\": \"SMS\",\n  \"bodyText\": \"Weighment #{{id}} needs approval.\",\n  \"dltTemplateId\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a new version of the EMAIL template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "Creating an existing code/channel/locale adds a version. New notifications use the latest active version; each notification pins the version it was accepted with.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"approval-requested\",\n  \"channel\": \"EMAIL\",\n  \"subject\": \"Approval needed for weighment #{{id}}\",\n  \"bodyHtml\": \"<p>Hi {{name}}, weighment <b>#{{id}}</b> needs approval.</p>\",\n  \"bodyText\": \"Hi {{name}}, weighment #{{id}} needs approval.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"version incremented to 2\", function () { pm.expect(pm.response.json().version).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"has templates\", function () { pm.expect(pm.response.json().length).to.be.above(3); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 Send notifications",
+      "description": "`POST /notifications` returns **202**; delivery is asynchronous. A stable `idempotencyKey` per business event makes retries safe.",
+      "item": [
+        {
+          "name": "Send EMAIL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "Typical backend trigger. Contact data and variables are never returned by the API.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WEIGHMENT_APPROVAL_REQUESTED\",\n  \"category\": \"APPROVAL\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });",
+                  "var body = pm.response.json();",
+                  "pm.test(\"202 with one notification per channel\", function () { pm.expect(body.notifications.length).to.be.above(0); });",
+                  "pm.collectionVariables.set(\"notificationId\", body.notifications[0].id);",
+                  "pm.test(\"email starts PENDING\", function () { pm.expect(pm.response.json().notifications[0].status).to.eql(\"PENDING\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replay the same request (idempotent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "Same idempotencyKey returns the original notification. Safe to retry after a timeout.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WEIGHMENT_APPROVAL_REQUESTED\",\n  \"category\": \"APPROVAL\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });",
+                  "pm.test(\"same notification id, nothing resent\", function () { pm.expect(pm.response.json().notifications[0].id).to.eql(pm.collectionVariables.get(\"notificationId\")); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send IN_APP + EMAIL together",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WEIGHMENT_APPROVAL_REQUESTED\",\n  \"category\": \"APPROVAL\",\n  \"channels\": [\n    \"IN_APP\",\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-multi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });",
+                  "var n = pm.response.json().notifications;",
+                  "pm.test(\"one row per channel\", function () { pm.expect(n.length).to.eql(2); });",
+                  "pm.test(\"in-app is delivered immediately\", function () { pm.expect(n.filter(function (x) { return x.channel === \"IN_APP\"; })[0].status).to.eql(\"DELIVERED\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send SMS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "With the engine in `aws` mode this needs SNS SMS access (and DLT registration for India).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WEIGHMENT_APPROVAL_REQUESTED\",\n  \"category\": \"APPROVAL\",\n  \"channels\": [\n    \"SMS\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-sms\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Schedule for later",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WEIGHMENT_APPROVAL_REQUESTED\",\n  \"category\": \"APPROVAL\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-scheduled\",\n  \"scheduledAt\": \"{{scheduledAt}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });",
+                  "pm.test(\"stays PENDING until scheduledAt\", function () { pm.expect(pm.response.json().notifications[0].status).to.eql(\"PENDING\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send using category default channels",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "`channels` omitted: the engine uses its configured default for the category (SUCCESS -> IN_APP).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"INFO_EVENT\",\n  \"category\": \"SUCCESS\",\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"idempotencyKey\": \"{{projectCode}}-default-channels\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 Status and history",
+      "description": "Poll for the result. `SENT` = accepted by the provider, not delivered to the inbox. These requests wait `waitMs` first to give the worker time.",
+      "item": [
+        {
+          "name": "Get notification status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notificationId}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var wait = parseInt(pm.collectionVariables.get(\"waitMs\") || \"1500\", 10);",
+                  "var end = Date.now() + wait; while (Date.now() < end) {}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "var n = pm.response.json();",
+                  "pm.test(\"sent by a worker\", function () { pm.expect(n.status).to.eql(\"SENT\"); pm.expect(n.attempts).to.eql(1); });",
+                  "pm.test(\"no contact data exposed\", function () { pm.expect(JSON.stringify(n)).to.not.include(pm.collectionVariables.get(\"recipientEmail\")); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search history (filters + pagination)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications?channel=EMAIL&category=APPROVAL&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "channel",
+                  "value": "EMAIL"
+                },
+                {
+                  "key": "category",
+                  "value": "APPROVAL"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "var p = pm.response.json();",
+                  "pm.test(\"paged response\", function () { pm.expect(p).to.have.keys([\"data\", \"total\", \"page\", \"size\"]); pm.expect(p.total).to.be.above(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retry a notification that is not retryable",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/retry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notificationId}}",
+                "retry"
+              ]
+            },
+            "description": "Only FAILED notifications with retryable=true can be retried (retries exhausted). Permanent failures and sent notifications return 409.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"error code is NOT_RETRYABLE\", function () { pm.expect(pm.response.json().code).to.eql(\"NOT_RETRYABLE\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 OTP",
+      "description": "One-time codes have their own controls: only a salted hash is stored, expiry, attempt limits, resend cooldown, single use. The code is **never returned by the API**; it is delivered to the recipient. To test the success path, paste the received code into the `otpCode` variable and run *Verify OTP (correct code)*.",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/otp/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "otp",
+                "send"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"EMAIL\",\n  \"recipient\": \"otp-{{runId}}@example.com\",\n  \"purpose\": \"login\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "var b = pm.response.json();",
+                  "pm.test(\"returns a challenge, never the code\", function () { pm.expect(b.challengeId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.match(/\\d{6}/); });",
+                  "pm.collectionVariables.set(\"challengeId\", b.challengeId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send OTP again too soon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/otp/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "otp",
+                "send"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"EMAIL\",\n  \"recipient\": \"otp-{{runId}}@example.com\",\n  \"purpose\": \"login\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 429\", function () { pm.response.to.have.status(429); });",
+                  "pm.test(\"error code is OTP_RESEND_COOLDOWN\", function () { pm.expect(pm.response.json().code).to.eql(\"OTP_RESEND_COOLDOWN\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });",
+                  "pm.test(\"Retry-After header present\", function () { pm.expect(pm.response.headers.get(\"Retry-After\")).to.not.be.null; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP (wrong code)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/otp/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "otp",
+                "verify"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challengeId\": \"{{challengeId}}\",\n  \"code\": \"000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is OTP_INVALID\", function () { pm.expect(pm.response.json().code).to.eql(\"OTP_INVALID\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP (correct code)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/otp/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "otp",
+                "verify"
+              ]
+            },
+            "description": "Skipped automatically when `otpCode` is empty (the code is only delivered to the recipient).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challengeId\": \"{{challengeId}}\",\n  \"code\": \"{{otpCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var code = pm.collectionVariables.get(\"otpCode\");",
+                  "if (!code) { pm.test.skip(\"set otpCode to the code you received to test the success path\"); }",
+                  "else { pm.test(\"verified\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().verified).to.eql(true); }); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 Preferences",
+      "description": "Consent per user, channel and category. OTP, VERIFICATION and SYSTEM are mandatory; MARKETING needs explicit consent.",
+      "item": [
+        {
+          "name": "Marketing without consent is cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROMO\",\n  \"category\": \"MARKETING\",\n  \"channels\": [\n    \"IN_APP\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-marketing-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });",
+                  "pm.test(\"cancelled, kept for audit\", function () { var n = pm.response.json().notifications[0]; pm.expect(n.status).to.eql(\"CANCELLED\"); pm.expect(n.lastErrorCode).to.eql(\"PREFERENCE_OPT_OUT\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grant marketing consent",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notification-preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notification-preferences"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userRef\": \"user-42\",\n  \"preferences\": [\n    {\n      \"channel\": \"IN_APP\",\n      \"category\": \"MARKETING\",\n      \"enabled\": true\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"preference stored\", function () { pm.expect(pm.response.json().length).to.be.above(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marketing with consent is delivered",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROMO\",\n  \"category\": \"MARKETING\",\n  \"channels\": [\n    \"IN_APP\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-marketing-2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });",
+                  "pm.test(\"delivered\", function () { pm.expect(pm.response.json().notifications[0].status).to.eql(\"DELIVERED\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cannot disable a mandatory category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notification-preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notification-preferences"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userRef\": \"user-42\",\n  \"preferences\": [\n    {\n      \"channel\": \"EMAIL\",\n      \"category\": \"SYSTEM\",\n      \"enabled\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is MANDATORY_CATEGORY\", function () { pm.expect(pm.response.json().code).to.eql(\"MANDATORY_CATEGORY\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notification-preferences?userRef=user-42",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notification-preferences"
+              ],
+              "query": [
+                {
+                  "key": "userRef",
+                  "value": "user-42"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 Inbox and devices",
+      "description": "In-app notifications for one end user. `recipientRef` is the calling project's own user id (the project is trusted because it holds the key).",
+      "item": [
+        {
+          "name": "List inbox",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inbox?recipientRef=user-42&unreadOnly=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inbox"
+              ],
+              "query": [
+                {
+                  "key": "recipientRef",
+                  "value": "user-42"
+                },
+                {
+                  "key": "unreadOnly",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "var p = pm.response.json();",
+                  "pm.test(\"has unread in-app items\", function () { pm.expect(p.total).to.be.above(0); });",
+                  "pm.collectionVariables.set(\"inboxId\", p.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark inbox item read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inbox/{{inboxId}}/read?recipientRef=user-42",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inbox",
+                "{{inboxId}}",
+                "read"
+              ],
+              "query": [
+                {
+                  "key": "recipientRef",
+                  "value": "user-42"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"readAt set\", function () { pm.expect(pm.response.json().readAt).to.not.be.null; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cannot read another user's item",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inbox/{{inboxId}}/read?recipientRef=someone-else",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inbox",
+                "{{inboxId}}",
+                "read"
+              ],
+              "query": [
+                {
+                  "key": "recipientRef",
+                  "value": "someone-else"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register push device token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/devices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices"
+              ]
+            },
+            "description": "Stored for later. Push delivery stays disabled until FCM/APNs is configured in the engine.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userRef\": \"user-42\",\n  \"platform\": \"android\",\n  \"token\": \"demo-token-{{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unregister device token",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/devices?token=demo-token-{{runId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "demo-token-{{runId}}"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 Negative cases and isolation",
+      "description": "What a project sees when it gets something wrong. Use these to build the client's error handling.",
+      "item": [
+        {
+          "name": "No API key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"error code is UNAUTHENTICATED\", function () { pm.expect(pm.response.json().code).to.eql(\"UNAUTHENTICATED\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown API key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{badKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Project key cannot call admin routes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"T\",\n  \"category\": \"INFO\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"u\",\n    \"email\": \"not-an-email\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 1\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is INVALID_EMAIL\", function () { pm.expect(pm.response.json().code).to.eql(\"INVALID_EMAIL\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing template variable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"T\",\n  \"category\": \"INFO\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"u\",\n    \"email\": \"a@b.co\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is TEMPLATE_VARIABLE_MISSING\", function () { pm.expect(pm.response.json().code).to.eql(\"TEMPLATE_VARIABLE_MISSING\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"T\",\n  \"category\": \"INFO\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"does-not-exist\",\n  \"recipient\": {\n    \"ref\": \"u\",\n    \"email\": \"a@b.co\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is TEMPLATE_NOT_FOUND\", function () { pm.expect(pm.response.json().code).to.eql(\"TEMPLATE_NOT_FOUND\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OTP category is rejected on /notifications",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"T\",\n  \"category\": \"OTP\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"u\",\n    \"email\": \"a@b.co\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is USE_OTP_API\", function () { pm.expect(pm.response.json().code).to.eql(\"USE_OTP_API\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"T\",\n  \"category\": \"INFO\",\n  \"channels\": [\n    \"SMS\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"u\",\n    \"phone\": \"9876543210\"\n  },\n  \"variables\": {\n    \"id\": 1\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"error code is INVALID_PHONE\", function () { pm.expect(pm.response.json().code).to.eql(\"INVALID_PHONE\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a read-only key (scope READ)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects/{{projectCode}}/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects",
+                "{{projectCode}}",
+                "keys"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"read-only\",\n  \"scopes\": [\n    \"READ\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"readOnlyKey\", pm.response.json().key);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read-only key cannot send",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WEIGHMENT_APPROVAL_REQUESTED\",\n  \"category\": \"APPROVAL\",\n  \"channels\": [\n    \"EMAIL\"\n  ],\n  \"templateCode\": \"approval-requested\",\n  \"recipient\": {\n    \"ref\": \"user-42\",\n    \"email\": \"{{recipientEmail}}\",\n    \"phone\": \"{{recipientPhone}}\"\n  },\n  \"variables\": {\n    \"name\": \"Ops\",\n    \"id\": 101\n  },\n  \"priority\": \"HIGH\",\n  \"idempotencyKey\": \"{{projectCode}}-weighment-101-forbidden\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{readOnlyKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a second project with rate limit 1/min",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{projectCode}}-b\",\n  \"name\": \"Second project\",\n  \"rateLimitPerMin\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Issue key for the second project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects/{{projectCode}}-b/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects",
+                "{{projectCode}}-b",
+                "keys"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"b\",\n  \"scopes\": [\n    \"SEND\",\n    \"READ\",\n    \"TEMPLATES\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"apiKeyB\", pm.response.json().key);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other project cannot see our notification",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notificationId}}"
+              ]
+            },
+            "description": "Another project's notification is indistinguishable from a missing one.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKeyB}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other project has none of our templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKeyB}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"empty\", function () { pm.expect(pm.response.json().length).to.eql(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Second project: create a template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "templates"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"ping\",\n  \"channel\": \"IN_APP\",\n  \"bodyText\": \"ping\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKeyB}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Second project: first send is accepted",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PING\",\n  \"category\": \"INFO\",\n  \"channels\": [\n    \"IN_APP\"\n  ],\n  \"templateCode\": \"ping\",\n  \"recipient\": {\n    \"ref\": \"u\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKeyB}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 202\", function () { pm.response.to.have.status(202); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Second project: rate limit returns 429",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PING\",\n  \"category\": \"INFO\",\n  \"channels\": [\n    \"IN_APP\"\n  ],\n  \"templateCode\": \"ping\",\n  \"recipient\": {\n    \"ref\": \"u\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKeyB}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 429\", function () { pm.response.to.have.status(429); });",
+                  "pm.test(\"error code is RATE_LIMITED\", function () { pm.expect(pm.response.json().code).to.eql(\"RATE_LIMITED\"); });",
+                  "pm.test(\"error body has a correlationId and no stack trace\", function () { var b = pm.response.json(); pm.expect(b.correlationId).to.be.a(\"string\"); pm.expect(JSON.stringify(b)).to.not.include(\"Exception\"); });",
+                  "pm.test(\"Retry-After header present\", function () { pm.expect(pm.response.headers.get(\"Retry-After\")).to.not.be.null; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9 Admin operations",
+      "description": "Platform admin only (`adminKey`).",
+      "item": [
+        {
+          "name": "Dead-letter queue (needs SQS enabled)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/dlq",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "dlq"
+              ]
+            },
+            "description": "Shows the approximate size and up to 10 messages (ids only).",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 with queue enabled, 409 QUEUE_DISABLED without\", function () { pm.expect([200, 409]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke the project key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects/{{projectCode}}/keys/{{keyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects",
+                "{{projectCode}}",
+                "keys",
+                "{{keyId}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoked key is rejected immediately",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Suspend the second project",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/projects/{{projectCode}}-b/status?active=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "projects",
+                "{{projectCode}}-b",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{adminKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Suspended project's key stops working",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKeyB}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

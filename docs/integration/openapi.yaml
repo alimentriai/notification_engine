@@ -1,0 +1,2183 @@
+openapi: 3.1.0
+info:
+  title: Notification Engine v2
+  description: |-
+    Generic multi-project notification service. A project sends one request; the engine validates it, applies the user's preferences, renders a versioned template, stores it, and delivers it through email (Amazon SES), SMS (Amazon SNS), in-app inbox or push.
+
+    **Authentication.** Every route except health and API docs needs an `X-Api-Key` header. A project key identifies the project; all data is isolated per project. `/admin/**` needs the platform admin key.
+
+    **Delivery is asynchronous.** `POST /notifications` returns 202. Poll `GET /notifications/{id}` for the status. `SENT` means the provider accepted the message, not that the recipient received it.
+
+    **Idempotency.** Send a stable `idempotencyKey` per business event; a replay returns the original notification and never sends twice.
+  contact:
+    name: Notification engine owner
+    email: replace-me@example.com
+  license:
+    name: Proprietary - internal use
+    identifier: LicenseRef-Proprietary
+  version: 1.0.0
+servers:
+- url: "{baseUrl}/api/v1"
+  description: Notification engine
+  variables:
+    baseUrl:
+      description: "Scheme, host and port of the engine"
+      default: http://localhost:8082
+security:
+- apiKey: []
+tags:
+- name: Notifications
+  description: "Create, track and retry notifications (scopes SEND, READ, RETRY)"
+- name: OTP
+  description: "One-time codes with expiry, attempt limits and resend cooldown (scope\
+    \ OTP)"
+- name: Templates
+  description: Per-project versioned templates (scope TEMPLATES)
+- name: Preferences
+  description: User consent per channel and category (scope PREFERENCES)
+- name: Inbox
+  description: In-app notifications and push device tokens (scope INBOX)
+- name: Admin
+  description: "Platform administration: projects, API keys, dead-letter queue (admin\
+    \ key)"
+paths:
+  /notification-preferences:
+    get:
+      tags:
+      - Preferences
+      summary: Get a user's preferences (scope PREFERENCES)
+      operationId: get
+      parameters:
+      - name: userRef
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PreferenceView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      tags:
+      - Preferences
+      summary: Replace/update a user's preferences (scope PREFERENCES)
+      description: "OTP, VERIFICATION and SYSTEM are mandatory and cannot be disabled\
+        \ (400 MANDATORY_CATEGORY). MARKETING is opt-in: it is cancelled unless enabled\
+        \ here."
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PreferenceView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /templates:
+    get:
+      tags:
+      - Templates
+      summary: List the project's templates (scope TEMPLATES)
+      operationId: list
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TemplateView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+      - Templates
+      summary: Create a template version (scope TEMPLATES)
+      description: "Creating an existing code/channel/locale adds a new version; the\
+        \ latest active version is used for new notifications and each notification\
+        \ pins the version it was accepted with. {{variable}} placeholders are required\
+        \ at send time; HTML bodies escape values. EMAIL needs a subject plus html\
+        \ or text; SMS/PUSH/IN_APP need bodyText (SMS may carry a dltTemplateId)."
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTemplateRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TemplateView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /otp/verify:
+    post:
+      tags:
+      - OTP
+      summary: Verify a one-time code (scope OTP)
+      description: "Single use. Wrong or reused code: 400 OTP_INVALID. Expired: 400\
+        \ OTP_EXPIRED. Too many attempts: 429 OTP_ATTEMPTS_EXCEEDED."
+      operationId: verify
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /otp/send:
+    post:
+      tags:
+      - OTP
+      summary: Send a one-time code (scope OTP)
+      description: Sends synchronously by EMAIL or SMS and returns a challengeId;
+        the code is never returned or stored in plain text. Resend cooldown and hourly
+        cap return 429 with Retry-After. A delivery failure returns 502 OTP_DELIVERY_FAILED
+        and leaves no usable challenge.
+      operationId: send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SendResult"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /notifications:
+    get:
+      tags:
+      - Notifications
+      summary: Search notification history (scope READ)
+      description: "Paginated (size max 100), newest first, filterable by status,\
+        \ channel, type, category, recipientRef and a created-at range."
+      operationId: search
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - PROCESSING
+          - SENT
+          - DELIVERED
+          - FAILED
+          - CANCELLED
+      - name: channel
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - OTP
+          - VERIFICATION
+          - APPROVAL
+          - SUCCESS
+          - ERROR
+          - WARNING
+          - INFO
+          - REMINDER
+          - SYSTEM
+          - MARKETING
+      - name: recipientRef
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseNotificationView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+      - Notifications
+      summary: Create and dispatch a notification (scope SEND)
+      description: "Validates the request, applies preferences, pins the template\
+        \ version, stores one notification per channel and queues delivery. Returns\
+        \ 202; delivery is asynchronous. In-app notifications are DELIVERED immediately.\
+        \ Replaying the same idempotencyKey returns the original notifications and\
+        \ never sends twice. Category OTP is rejected here (use /otp/send). Omit channels\
+        \ to use the configured defaults for the category."
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationRequest"
+        required: true
+      responses:
+        "202":
+          description: "Accepted. One notification per channel; poll GET /notifications/{id}\
+            \ for status"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CreateResult"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /notifications/{id}/retry:
+    post:
+      tags:
+      - Notifications
+      summary: Retry a failed notification (scope RETRY)
+      description: Only FAILED notifications whose failure is retryable (retries exhausted).
+        Permanent failures return 409 NOT_RETRYABLE.
+      operationId: retry
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "202":
+          description: Re-queued
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /devices:
+    post:
+      tags:
+      - Inbox
+      summary: Register a push device token (scope INBOX)
+      description: Stored for later. Push delivery stays disabled until a PushProvider
+        (FCM/APNs) is configured.
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRequest"
+        required: true
+      responses:
+        "204":
+          description: Registered
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+      - Inbox
+      summary: Unregister a push device token (scope INBOX)
+      operationId: unregister
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Unregistered
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/projects:
+    get:
+      tags:
+      - Admin
+      summary: List projects (admin key)
+      operationId: projects
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+      - Admin
+      summary: Create a project (admin key)
+      operationId: createProject
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProjectView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/projects/{code}/keys:
+    get:
+      tags:
+      - Admin
+      summary: List a project's API keys (admin key)
+      description: "Metadata only: id, prefix (first characters of the key), label,\
+        \ scopes, active, created and last used. The raw key is never retrievable;\
+        \ if it was lost, issue a new key and revoke the old one."
+      operationId: listKeys
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeyView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+      - Admin
+      summary: Issue a project API key (admin key)
+      description: "The raw key (ntf_...) is returned ONCE and stored only as a SHA-256\
+        \ hash. Scopes: SEND, READ, RETRY, TEMPLATES, PREFERENCES, OTP, INBOX."
+      operationId: issueKey
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueKeyRequest"
+        required: true
+      responses:
+        "201":
+          description: Created. The key is shown only in this response
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/IssuedKey"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/dlq/redrive:
+    post:
+      tags:
+      - Admin
+      summary: Redrive dead-lettered messages (admin key)
+      description: "Resets each notification to PENDING, requeues it and removes it\
+        \ from the DLQ."
+      operationId: dlqRedrive
+      parameters:
+      - name: max
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+          maximum: 1000
+          minimum: 1
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+                  format: int32
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /templates/{id}/active:
+    patch:
+      tags:
+      - Templates
+      summary: Activate or deactivate a template version (scope TEMPLATES)
+      operationId: setActive
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: value
+        in: query
+        required: true
+        schema:
+          type: boolean
+      responses:
+        "204":
+          description: Updated
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /inbox/{id}/read:
+    patch:
+      tags:
+      - Inbox
+      summary: Mark an in-app notification as read (scope INBOX)
+      operationId: markRead
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: recipientRef
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/projects/{code}/status:
+    patch:
+      tags:
+      - Admin
+      summary: Activate or suspend a project (admin key)
+      description: A suspended project's keys stop working immediately.
+      operationId: status
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: active
+        in: query
+        required: true
+        schema:
+          type: boolean
+      responses:
+        "204":
+          description: Updated
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /notifications/{id}:
+    get:
+      tags:
+      - Notifications
+      summary: Get one notification and its delivery status (scope READ)
+      description: Never includes recipient contact data or template variables. SENT
+        = accepted by the provider.
+      operationId: get_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: The notification
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /inbox:
+    get:
+      tags:
+      - Inbox
+      summary: List a user's in-app notifications (scope INBOX)
+      description: "recipientRef is the project's own user reference, supplied by\
+        \ the calling backend on behalf of its end user."
+      operationId: list_1
+      parameters:
+      - name: recipientRef
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: unreadOnly
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageResponseNotificationView"
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/dlq:
+    get:
+      tags:
+      - Admin
+      summary: Inspect the dead-letter queue (admin key)
+      description: Returns the approximate size and up to 10 messages (ids only).
+        Requires the SQS queue to be enabled.
+      operationId: dlqPeek
+      parameters:
+      - name: max
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+          maximum: 10
+          minimum: 1
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /admin/projects/{code}/keys/{keyId}:
+    delete:
+      tags:
+      - Admin
+      summary: Revoke a project API key (admin key)
+      operationId: revoke
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: Revoked
+        "400":
+          description: "Invalid request (validation, unknown template, missing variable,\
+            \ invalid recipient). Do not retry unchanged."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
+            \ key."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The key is valid but lacks the required scope, or a project\
+            \ key was used on /admin."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: "Not found, or it belongs to another project (the two are deliberately\
+            \ indistinguishable)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
+            \ the error code."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
+            \ header, then retry."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Error:
+      description: "Stable error body. 'code' is machine readable and safe to branch\
+        \ on; 'message' is for humans; 'correlationId' identifies the request in the\
+        \ engine logs. Provider payloads, stack traces and secrets are never returned."
+      properties:
+        code:
+          type: string
+          example: TEMPLATE_NOT_FOUND
+        message:
+          type: string
+          example: No active template 'welcome' for channel EMAIL
+        correlationId:
+          type: string
+          example: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
+    PreferenceItem:
+      type: object
+      properties:
+        channel:
+          type: string
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+        category:
+          type: string
+          enum:
+          - OTP
+          - VERIFICATION
+          - APPROVAL
+          - SUCCESS
+          - ERROR
+          - WARNING
+          - INFO
+          - REMINDER
+          - SYSTEM
+          - MARKETING
+        enabled:
+          type: boolean
+      required:
+      - category
+      - channel
+    UpdateRequest:
+      type: object
+      properties:
+        userRef:
+          type: string
+          maxLength: 128
+          minLength: 0
+        preferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreferenceItem"
+          minItems: 1
+    PreferenceView:
+      type: object
+      properties:
+        channel:
+          type: string
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+        category:
+          type: string
+          enum:
+          - OTP
+          - VERIFICATION
+          - APPROVAL
+          - SUCCESS
+          - ERROR
+          - WARNING
+          - INFO
+          - REMINDER
+          - SYSTEM
+          - MARKETING
+        enabled:
+          type: boolean
+        consentAt:
+          type: string
+          format: date-time
+    CreateTemplateRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          example: approval-requested
+          maxLength: 100
+          minLength: 0
+          pattern: "[A-Za-z0-9_.-]+"
+        channel:
+          type: string
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+          example: EMAIL
+        locale:
+          type: string
+          description: Defaults to en
+          example: en
+          maxLength: 16
+          minLength: 0
+        subject:
+          type: string
+          description: Email subject / in-app title
+          example: "Approval needed for weighment #{{id}}"
+          maxLength: 300
+          minLength: 0
+        bodyHtml:
+          type: string
+          example: "<p>Hi {{name}}, weighment <b>#{{id}}</b> needs approval.</p>"
+          maxLength: 20000
+          minLength: 0
+        bodyText:
+          type: string
+          example: "Hi {{name}}, weighment #{{id}} needs approval."
+          maxLength: 5000
+          minLength: 0
+        dltTemplateId:
+          type: string
+          description: India DLT content template id (SMS)
+          maxLength: 64
+          minLength: 0
+      required:
+      - channel
+    TemplateView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        channel:
+          type: string
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+        locale:
+          type: string
+        version:
+          type: integer
+          format: int32
+        subject:
+          type: string
+        bodyHtml:
+          type: string
+        bodyText:
+          type: string
+        dltTemplateId:
+          type: string
+        active:
+          type: boolean
+    VerifyRequest:
+      type: object
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+          description: challengeId returned by /otp/send
+        code:
+          type: string
+          example: "123456"
+          maxLength: 12
+          minLength: 0
+      required:
+      - challengeId
+    SendRequest:
+      type: object
+      properties:
+        channel:
+          type: string
+          description: EMAIL or SMS
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+          example: EMAIL
+        recipient:
+          type: string
+          description: Email address or E.164 phone number
+          example: ops@example.com
+          maxLength: 320
+          minLength: 0
+        purpose:
+          type: string
+          description: What the code is for
+          example: login
+          maxLength: 64
+          minLength: 0
+          pattern: "[A-Za-z0-9_.-]+"
+        locale:
+          type: string
+          example: en
+          maxLength: 16
+          minLength: 0
+      required:
+      - channel
+    SendResult:
+      type: object
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+        expiresInSeconds:
+          type: integer
+          format: int32
+        resendAfterSeconds:
+          type: integer
+          format: int32
+    CreateNotificationRequest:
+      type: object
+      description: Request to create a notification. One notification is created per
+        channel.
+      properties:
+        type:
+          type: string
+          description: Free-form event name for reporting and filtering
+          example: WEIGHMENT_APPROVAL_REQUESTED
+          maxLength: 64
+          minLength: 0
+          pattern: "[A-Za-z0-9_.:-]+"
+        category:
+          type: string
+          description: Category. MARKETING needs explicit user consent; OTP is rejected
+            here (use /otp/send); OTP/VERIFICATION/SYSTEM ignore opt-outs
+          enum:
+          - OTP
+          - VERIFICATION
+          - APPROVAL
+          - SUCCESS
+          - ERROR
+          - WARNING
+          - INFO
+          - REMINDER
+          - SYSTEM
+          - MARKETING
+          example: APPROVAL
+        channels:
+          type: array
+          description: Channels to use. Omit to use the engine's configured defaults
+            for the category
+          example:
+          - IN_APP
+          - EMAIL
+          items:
+            type: string
+            enum:
+            - IN_APP
+            - EMAIL
+            - SMS
+            - PUSH
+        templateCode:
+          type: string
+          description: Code of a template the project created for every requested
+            channel
+          example: approval-requested
+          maxLength: 100
+          minLength: 0
+        locale:
+          type: string
+          description: "Template locale, falls back to en"
+          example: en
+          maxLength: 16
+          minLength: 0
+        recipient:
+          $ref: "#/components/schemas/Recipient"
+          description: Who receives it. ref is required for IN_APP and PUSH; email
+            for EMAIL; phone (E.164) for SMS
+        variables:
+          type: object
+          additionalProperties: true
+          description: "Values for the template's {{placeholders}} (strings or numbers).\
+            \ Do not put secrets here; they are stored until the contact-data retention\
+            \ wipe"
+          example:
+            name: Ops
+            id: 101
+        priority:
+          type: string
+          description: "Priority, defaults to NORMAL"
+          enum:
+          - LOW
+          - NORMAL
+          - HIGH
+          - URGENT
+          example: HIGH
+        idempotencyKey:
+          type: string
+          description: Stable key per business event (for example <entity>-<id>-<event>).
+            A replay returns the original notifications and never sends twice
+          example: weighment-101-approval-requested
+          maxLength: 100
+          minLength: 0
+        scheduledAt:
+          type: string
+          format: date-time
+          description: Do not send before this time (ISO-8601)
+          example: 2026-12-01T09:00:00Z
+        expiresAt:
+          type: string
+          format: date-time
+          description: Drop the notification if still unsent after this time (ISO-8601)
+          example: 2026-12-31T00:00:00Z
+      required:
+      - category
+      - recipient
+    Recipient:
+      type: object
+      description: Recipient identifiers. Contact data is wiped from the engine after
+        the retention period and is never returned by the API
+      properties:
+        ref:
+          type: string
+          description: The calling project's own user id
+          example: user-42
+          maxLength: 128
+          minLength: 0
+        email:
+          type: string
+          description: Required for EMAIL
+          example: ops@example.com
+          maxLength: 320
+          minLength: 0
+        phone:
+          type: string
+          description: "Required for SMS, E.164 (Indian mobiles: +91 and 10 digits\
+            \ starting 6-9)"
+          example: "+919876543210"
+          maxLength: 32
+          minLength: 0
+    CreateResult:
+      type: object
+      properties:
+        requestId:
+          type: string
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationView"
+    NotificationView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        requestId:
+          type: string
+        recipientRef:
+          type: string
+        type:
+          type: string
+        category:
+          type: string
+          enum:
+          - OTP
+          - VERIFICATION
+          - APPROVAL
+          - SUCCESS
+          - ERROR
+          - WARNING
+          - INFO
+          - REMINDER
+          - SYSTEM
+          - MARKETING
+        channel:
+          type: string
+          enum:
+          - IN_APP
+          - EMAIL
+          - SMS
+          - PUSH
+        templateCode:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PROCESSING
+          - SENT
+          - DELIVERED
+          - FAILED
+          - CANCELLED
+        priority:
+          type: string
+          enum:
+          - LOW
+          - NORMAL
+          - HIGH
+          - URGENT
+        attempts:
+          type: integer
+          format: int32
+        lastErrorCode:
+          type: string
+        retryable:
+          type: boolean
+        correlationId:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+    DeviceRequest:
+      type: object
+      properties:
+        userRef:
+          type: string
+          maxLength: 128
+          minLength: 0
+        platform:
+          type: string
+          maxLength: 16
+          minLength: 0
+        token:
+          type: string
+          maxLength: 512
+          minLength: 0
+    CreateProjectRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Unique lowercase project code
+          example: sharique-erp
+          maxLength: 64
+          minLength: 0
+          pattern: "[a-z0-9][a-z0-9-]*"
+        name:
+          type: string
+          example: Sharique ERP
+          maxLength: 200
+          minLength: 0
+        defaultSenderEmail:
+          type: string
+          description: Verified SES sender for this project
+          example: no-reply@example.com
+          maxLength: 320
+          minLength: 0
+        sesConfigSet:
+          type: string
+          description: Optional SES configuration set
+          maxLength: 128
+          minLength: 0
+        smsSenderId:
+          type: string
+          description: India DLT sender id (header)
+          example: A1CRSH
+          maxLength: 16
+          minLength: 0
+        smsEntityId:
+          type: string
+          description: India DLT principal entity id
+          maxLength: 64
+          minLength: 0
+        rateLimitPerMin:
+          type: integer
+          format: int32
+          description: "Requests per minute, default from engine config"
+          example: 120
+          minimum: 1
+        dailyQuota:
+          type: integer
+          format: int32
+          description: "Notifications per rolling 24h, default from engine config"
+          example: 50000
+          minimum: 1
+    ProjectView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        defaultSenderEmail:
+          type: string
+        rateLimitPerMin:
+          type: integer
+          format: int32
+        dailyQuota:
+          type: integer
+          format: int32
+    IssueKeyRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Where the key is used
+          example: erp-backend-prod
+          maxLength: 100
+          minLength: 0
+        scopes:
+          type: array
+          description: "SEND, READ, RETRY, TEMPLATES, PREFERENCES, OTP, INBOX. Defaults\
+            \ to SEND and READ"
+          example:
+          - SEND
+          - READ
+          items:
+            type: string
+          uniqueItems: true
+    IssuedKey:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+        prefix:
+          type: string
+        label:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+    PageResponseNotificationView:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationView"
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+    KeyView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        prefix:
+          type: string
+        label:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      description: "Project API key (ntf_...) issued by the platform admin, or the\
+        \ admin key for /admin routes."
+      name: X-Api-Key
+      in: header
