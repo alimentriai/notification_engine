@@ -17,12 +17,20 @@ info:
     identifier: LicenseRef-Proprietary
   version: 1.0.0
 servers:
-- url: "{baseUrl}/api/v1"
-  description: Notification engine
+- url: /api/v1
+  description: This server (same origin as this page)
+- url: "{scheme}://{host}/api/v1"
+  description: Another host (for clients and generators)
   variables:
-    baseUrl:
-      description: "Scheme, host and port of the engine"
-      default: http://localhost:8082
+    scheme:
+      description: "http for local development, https in production"
+      enum:
+      - http
+      - https
+      default: http
+    host:
+      description: Host and port of the engine
+      default: localhost:8082
 security:
 - apiKey: []
 tags:
@@ -69,6 +77,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -76,6 +88,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -83,6 +99,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -90,6 +110,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -97,6 +121,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -104,6 +132,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
     put:
       tags:
       - Preferences
@@ -134,6 +166,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -141,6 +177,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -148,6 +188,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -155,6 +199,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -162,6 +210,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -169,6 +221,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /templates:
     get:
       tags:
@@ -191,6 +247,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -198,6 +258,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -205,6 +269,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -212,6 +280,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -219,6 +291,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -226,6 +302,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
     post:
       tags:
       - Templates
@@ -256,6 +336,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -263,6 +347,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -270,6 +358,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -277,6 +369,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -284,6 +380,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -291,6 +391,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /otp/verify:
     post:
       tags:
@@ -321,6 +425,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -328,6 +436,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -335,6 +447,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -342,6 +458,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -349,6 +469,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -356,6 +480,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /otp/send:
     post:
       tags:
@@ -386,6 +514,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -393,6 +525,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -400,6 +536,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -407,6 +547,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -414,6 +558,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -421,6 +569,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /notifications:
     get:
       tags:
@@ -518,6 +670,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -525,6 +681,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -532,6 +692,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -539,6 +703,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -546,6 +714,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -553,6 +725,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
     post:
       tags:
       - Notifications
@@ -585,6 +761,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -592,6 +772,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -599,6 +783,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -606,6 +794,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -613,6 +805,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -620,6 +816,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /notifications/{id}/retry:
     post:
       tags:
@@ -649,6 +849,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -656,6 +860,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -663,6 +871,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -670,6 +882,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -677,6 +893,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -684,6 +904,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /devices:
     post:
       tags:
@@ -708,6 +932,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -715,6 +943,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -722,6 +954,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -729,6 +965,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -736,6 +976,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -743,6 +987,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
     delete:
       tags:
       - Inbox
@@ -764,6 +1012,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -771,6 +1023,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -778,6 +1034,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -785,6 +1045,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -792,6 +1056,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -799,6 +1067,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /admin/projects:
     get:
       tags:
@@ -821,6 +1093,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -828,6 +1104,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -835,6 +1115,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -842,6 +1126,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -849,6 +1137,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -856,6 +1148,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
     post:
       tags:
       - Admin
@@ -881,6 +1177,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -888,6 +1188,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -895,6 +1199,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -902,6 +1210,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -909,6 +1221,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -916,6 +1232,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /admin/projects/{code}/keys:
     get:
       tags:
@@ -947,6 +1267,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -954,6 +1278,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -961,6 +1289,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -968,6 +1300,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -975,6 +1311,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -982,6 +1322,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
     post:
       tags:
       - Admin
@@ -1015,6 +1359,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1022,6 +1370,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1029,6 +1381,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1036,6 +1392,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1043,6 +1403,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1050,6 +1414,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /admin/dlq/redrive:
     post:
       tags:
@@ -1085,6 +1453,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1092,6 +1464,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1099,6 +1475,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1106,6 +1486,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1113,6 +1497,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1120,6 +1508,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /templates/{id}/active:
     patch:
       tags:
@@ -1148,6 +1540,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1155,6 +1551,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1162,6 +1562,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1169,6 +1573,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1176,6 +1584,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1183,6 +1595,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /inbox/{id}/read:
     patch:
       tags:
@@ -1215,6 +1631,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1222,6 +1642,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1229,6 +1653,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1236,6 +1664,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1243,6 +1675,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1250,6 +1686,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /admin/projects/{code}/status:
     patch:
       tags:
@@ -1278,6 +1718,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1285,6 +1729,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1292,6 +1740,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1299,6 +1751,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1306,6 +1762,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1313,6 +1773,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /notifications/{id}:
     get:
       tags:
@@ -1342,6 +1806,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1349,6 +1817,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1356,6 +1828,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1363,6 +1839,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1370,6 +1850,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1377,6 +1861,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /inbox:
     get:
       tags:
@@ -1425,6 +1913,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1432,6 +1924,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1439,6 +1935,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1446,6 +1946,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1453,6 +1957,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1460,6 +1968,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /admin/dlq:
     get:
       tags:
@@ -1494,6 +2006,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1501,6 +2017,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1508,6 +2028,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1515,6 +2039,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1522,6 +2050,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1529,6 +2061,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
   /admin/projects/{code}/keys/{keyId}:
     delete:
       tags:
@@ -1557,6 +2093,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: TEMPLATE_VARIABLE_MISSING
+                message: "Missing template variable: name"
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "401":
           description: "Missing, unknown or revoked X-Api-Key. Do not retry; fix the\
             \ key."
@@ -1564,6 +2104,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: UNAUTHENTICATED
+                message: A valid X-Api-Key is required
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "403":
           description: "The key is valid but lacks the required scope, or a project\
             \ key was used on /admin."
@@ -1571,6 +2115,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: FORBIDDEN
+                message: Insufficient permissions
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "404":
           description: "Not found, or it belongs to another project (the two are deliberately\
             \ indistinguishable)."
@@ -1578,6 +2126,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_FOUND
+                message: Notification not found
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "409":
           description: "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See\
             \ the error code."
@@ -1585,6 +2137,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: NOT_RETRYABLE
+                message: Only retryable FAILED notifications can be retried
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
         "429":
           description: "Rate limit, daily quota or OTP limit reached. Honour the Retry-After\
             \ header, then retry."
@@ -1592,6 +2148,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+              example:
+                code: RATE_LIMITED
+                message: Project rate limit exceeded
+                correlationId: 7f5d415f-c0d4-4a4c-b2f1-94eea7768fde
 components:
   schemas:
     Error:

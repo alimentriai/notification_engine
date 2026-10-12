@@ -206,7 +206,7 @@ docker run --rm --network host -v "$PWD/postman":/etc/newman postman/newman run 
   -e local.postman_environment.json --env-var baseUrl=http://localhost:8082 --env-var adminKey=$ADMIN
 ```
 
-**Generate a client from the spec**, for example Java or TypeScript: `openapi-generator-cli generate -i openapi.yaml -g typescript-fetch -o client`. Set the server variable `baseUrl` and send the `X-Api-Key` header on every request.
+**Generate a client from the spec**, for example Java or TypeScript: `openapi-generator-cli generate -i openapi.yaml -g typescript-fetch -o client`. Point the client at the second server, `{scheme}://{host}/api/v1` (set `scheme` and `host`), or simply configure your client's base URL as `https://<engine-host>/api/v1`, and send the `X-Api-Key` header on every request. (The first server, `/api/v1`, is relative and is meant for Swagger UI.)
 
 **Regenerate the spec** after changing the API: `./export-openapi.sh http://localhost:8082`.
 

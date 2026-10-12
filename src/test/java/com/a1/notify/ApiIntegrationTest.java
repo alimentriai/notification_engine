@@ -651,7 +651,15 @@ class ApiIntegrationTest {
             assertThat(doc.get("paths").has(path)).as("path " + path).isTrue();
         }
         assertThat(doc.at("/components/securitySchemes/apiKey/name").asText()).isEqualTo("X-Api-Key");
-        assertThat(doc.at("/servers/0/url").asText()).isEqualTo("{baseUrl}/api/v1");
+        // Swagger UI breaks when the scheme is a server variable, so the first server must be relative.
+        assertThat(doc.at("/servers/0/url").asText()).isEqualTo("/api/v1");
+        assertThat(doc.at("/servers/1/url").asText()).isEqualTo("{scheme}://{host}/api/v1");
+        assertThat(doc.at("/servers/1/variables").has("scheme")).isTrue();
+        // each error status carries its own example, not one shared example
+        assertThat(doc.at("/paths/~1notifications/post/responses/401/content/application~1json/example/code").asText())
+                .isEqualTo("UNAUTHENTICATED");
+        assertThat(doc.at("/paths/~1notifications/post/responses/429/content/application~1json/example/code").asText())
+                .isEqualTo("RATE_LIMITED");
         JsonNode create = doc.at("/paths/~1notifications/post");
         assertThat(create.get("summary").asText()).contains("SEND");
         for (String code : List.of("202", "400", "401", "403", "404", "409", "429")) {

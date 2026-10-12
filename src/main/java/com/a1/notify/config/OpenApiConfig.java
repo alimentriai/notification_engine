@@ -39,8 +39,13 @@ public class OpenApiConfig {
                 .addProperty("message", new StringSchema().example("No active template 'welcome' for channel EMAIL"))
                 .addProperty("correlationId", new StringSchema().example("7f5d415f-c0d4-4a4c-b2f1-94eea7768fde"));
 
-        ServerVariables variables = new ServerVariables().addServerVariable("baseUrl",
-                new ServerVariable()._default("http://localhost:8082").description("Scheme, host and port of the engine"));
+        // Swagger UI needs a concrete (or relative) server URL: a variable in the scheme position breaks "Try it out".
+        // First entry is relative, so the docs page always calls the host and port it was loaded from.
+        ServerVariables variables = new ServerVariables()
+                .addServerVariable("scheme", new ServerVariable()._enum(List.of("http", "https"))._default("http")
+                        .description("http for local development, https in production"))
+                .addServerVariable("host", new ServerVariable()._default("localhost:8082")
+                        .description("Host and port of the engine"));
 
         return new OpenAPI()
                 .info(new Info().title("Notification Engine v2").version("1.0.0")
@@ -59,7 +64,10 @@ public class OpenApiConfig {
                                 notification and never sends twice.""")
                         .license(new License().name("Proprietary - internal use").identifier("LicenseRef-Proprietary"))
                         .contact(new Contact().name("Notification engine owner").email("replace-me@example.com")))
-                .servers(List.of(new Server().url("{baseUrl}/api/v1").description("Notification engine").variables(variables)))
+                .servers(List.of(
+                        new Server().url("/api/v1").description("This server (same origin as this page)"),
+                        new Server().url("{scheme}://{host}/api/v1").description("Another host (for clients and generators)")
+                                .variables(variables)))
                 .tags(List.of(
                         new Tag().name("Notifications").description("Create, track and retry notifications (scopes SEND, READ, RETRY)"),
                         new Tag().name("OTP").description("One-time codes with expiry, attempt limits and resend cooldown (scope OTP)"),
@@ -78,19 +86,31 @@ public class OpenApiConfig {
     /** Adds the shared error responses to every operation so each route documents them consistently. */
     @Bean
     public OperationCustomizer standardErrorResponses() {
-        Map<String, String> errors = new java.util.LinkedHashMap<>();
-        errors.put("400", "Invalid request (validation, unknown template, missing variable, invalid recipient). Do not retry unchanged.");
-        errors.put("401", "Missing, unknown or revoked X-Api-Key. Do not retry; fix the key.");
-        errors.put("403", "The key is valid but lacks the required scope, or a project key was used on /admin.");
-        errors.put("404", "Not found, or it belongs to another project (the two are deliberately indistinguishable).");
-        errors.put("409", "Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See the error code.");
-        errors.put("429", "Rate limit, daily quota or OTP limit reached. Honour the Retry-After header, then retry.");
+        record Err(String description, String code, String message) {
+        }
+        Map<String, Err> errors = new java.util.LinkedHashMap<>();
+        errors.put("400", new Err("Invalid request (validation, unknown template, missing variable, invalid recipient). Do not retry unchanged.",
+                "TEMPLATE_VARIABLE_MISSING", "Missing template variable: name"));
+        errors.put("401", new Err("Missing, unknown or revoked X-Api-Key. Do not retry; fix the key.",
+                "UNAUTHENTICATED", "A valid X-Api-Key is required"));
+        errors.put("403", new Err("The key is valid but lacks the required scope, or a project key was used on /admin.",
+                "FORBIDDEN", "Insufficient permissions"));
+        errors.put("404", new Err("Not found, or it belongs to another project (the two are deliberately indistinguishable).",
+                "NOT_FOUND", "Notification not found"));
+        errors.put("409", new Err("Conflict (for example NOT_RETRYABLE, DUPLICATE_REQUEST). See the error code.",
+                "NOT_RETRYABLE", "Only retryable FAILED notifications can be retried"));
+        errors.put("429", new Err("Rate limit, daily quota or OTP limit reached. Honour the Retry-After header, then retry.",
+                "RATE_LIMITED", "Project rate limit exceeded"));
         return (Operation operation, org.springframework.web.method.HandlerMethod handlerMethod) -> {
-            errors.forEach((status, description) -> {
+            errors.forEach((status, err) -> {
                 if (operation.getResponses() == null || !operation.getResponses().containsKey(status)) {
-                    operation.getResponses().addApiResponse(status, new ApiResponse().description(description)
+                    Map<String, Object> example = new java.util.LinkedHashMap<>();
+                    example.put("code", err.code());
+                    example.put("message", err.message());
+                    example.put("correlationId", "7f5d415f-c0d4-4a4c-b2f1-94eea7768fde");
+                    operation.getResponses().addApiResponse(status, new ApiResponse().description(err.description())
                             .content(new Content().addMediaType("application/json",
-                                    new MediaType().schema(new Schema<>().$ref("#/components/schemas/" + ERROR_SCHEMA)))));
+                                    new MediaType().schema(new Schema<>().$ref("#/components/schemas/" + ERROR_SCHEMA)).example(example))));
                 }
             });
             return operation;

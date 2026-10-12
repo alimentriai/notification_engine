@@ -70,7 +70,14 @@ echo "$COUNT_NEW created, $COUNT_SKIP already present"
 echo "== 4/4 Project API key"
 # The raw key is stored only as a hash, so it cannot be shown again. If an active key with the same label
 # already exists we keep it (set FORCE_NEW_KEY=1 to issue another one, then revoke the old one).
-ACTIVE_LABELS=$(call GET "/admin/projects/$CODE_P/keys" "$ADMIN_KEY" | py "import sys,json;print('\n'.join(k['label'] for k in json.load(sys.stdin) if k['active']))")
+LIST=$(call GET "/admin/projects/$CODE_P/keys" "$ADMIN_KEY")
+if [ "$(code)" = 200 ]; then
+  ACTIVE_LABELS=$(echo "$LIST" | py "import sys,json;print('\n'.join(k['label'] for k in json.load(sys.stdin) if k['active']))")
+else
+  # Older engine builds have no key-listing endpoint: assume no key exists yet and issue one.
+  ACTIVE_LABELS=""
+  echo "  (this engine cannot list keys, HTTP $(code); update it to get duplicate-key protection)"
+fi
 KEYS_JSON=$(py "import json;print(json.dumps(json.load(open('$SEED'))['keys']))")
 n=$(echo "$KEYS_JSON" | py "import sys,json;print(len(json.load(sys.stdin)))")
 FIRST_KEY=""
