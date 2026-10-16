@@ -2,7 +2,7 @@ name: Publish image
 
 on:
   push:
-    branches: [main]
+    branches: [main, qa, develop]
     tags: ["v*.*.*"]
 
 permissions:
@@ -31,6 +31,8 @@ jobs:
             type=sha,prefix=sha-
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=qa,enable=${{ github.ref == 'refs/heads/qa' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
