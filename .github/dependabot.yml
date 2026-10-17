@@ -1,11 +1,20 @@
 version: 2
 updates:
   - package-ecosystem: maven
+    target-branch: develop
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
+    target-branch: develop
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
+    target-branch: develop
     directory: /
     schedule: { interval: weekly }
